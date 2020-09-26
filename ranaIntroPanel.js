@@ -10,51 +10,169 @@
 class IntroPanel {
 	constructor() {
 		this.bgColor = RGB(50, 50, 50);
+		this.panelSize = [0, 0];
+		this.cursorPos = [0, 0];
 		/** @type {Object<string, UI>} */
 		this.elems = {};
 		/** @type {FbMetadbHandle} */
 		this.currentHandle = null;
-		this.cursorPos = [0, 0];
+		this.repaintFlg = false;
 	}
+	/** @param {GdiGraphics} gr */
 	draw(gr) {
-		gr.FillSolidRect(0, 0, pWindow.Width, pWindow.Height, this.bgColor);
+		gr.FillSolidRect(0, 0, ...this.panelSize, this.bgColor);
 		this.elems.isEmpty() && this.createElements();
-		Object.values(this.elems).forEach(elem => {
-			elem.draw && elem.draw(gr);
-		});
+		if (this.repaintFlg) {
+			Object.values(this.elems).forEach(elem => elem.draw(gr));
+		} else {
+			Object.values(this.elems).forEach(elem => {
+				elem instanceof Label && elem.setWidth(gr);
+				elem.draw(gr);
+			});
+			pWindow.Repaint();
+		}
+		this.repaintFlg = !this.repaintFlg;
 	}
 	createElements() {
-		const winW = pWindow.Width, winH = pWindow.Height;
+		Object.entries(this.defineElements()).forEach(([id, def]) => {
+			switch (def.type) {
+				case 'fill':
+					this.elems[id] = new Fill(def.sizeDef, def.events, def.bgColor);
+					break;
+				case 'button':
+					this.elems[id] = new Button(def.sizeDef, def.img, funcs[id]);
+					break;
+				case 'label':
+					this.elems[id] = new Label(def.sizeDef, def.events, def.text, def.color, def.font, funcs[id]);
+					break;
+				case 'artwork':
+					this.elems[id] = new Artwork(def.sizeDef, def.events, def.bgColor);
+					break;
+			}
+		});
+	}
+	defineElements() {
 		const topH = 30, btnS = 30;
-		this.elems.topBar = new Fill(0, 0, winW - winH, topH, ['resize'], RGB(0, 84, 167));
-		this.elems.playlist = new Label(0, 0, 250, topH,
-				['select', 'switch'], '- [ - / - ]', colours.White, util.getFont(), null);
-		this.elems.time = new Label(
-				300, 0, 200, topH, ['select', 'time', 'stop'], '--:-- / --:-- (-%)', colours.White, util.getFont(), null);
-		this.elems.buttonBar = new Fill(0, topH, winW - winH, btnS, ['resize'], RGB(230, 230, 230));
-		this.elems.stop = new Button(5, topH, btnS, btnS, 'stop.png', funcs['stop']);
-		this.elems.play = new Button(45, topH, btnS, btnS, 'play.png', funcs['play']);
-		this.elems.pause = new Button(85, topH, btnS, btnS, 'pause.png', funcs['pause']);
-		this.elems.prev = new Button(125, topH, btnS, btnS, 'prev.png', funcs['prev']);
-		this.elems.next = new Button(165, topH, btnS, btnS, 'next.png', funcs['next']);
-		this.elems.setting = new Button(205, topH, btnS, btnS, 'gear.png', funcs['setting']);
-		this.elems.tweet = new Button(245, topH, btnS, btnS, 'twibird.png', funcs['tweet']);
-		this.elems.yearType = new Label(0, 65, winW - winH, 40,
-				['select', 'stop', 'resize'], '', RGB(230, 230, 230), util.getFont(null, 18, FontStyle.Bold), null);
-		this.elems.tieUp = new Label(0, 90, winW - winH, 50,
-				['select', 'stop', 'resize'], '', colours.White, util.getFont(null, 24, FontStyle.Bold), funcs['tieUp']);
-		this.elems.title = new Label(0, 135, winW - winH, 55,
-				['select', 'stop', 'resize'], '', colours.White, util.getFont(null, 30, FontStyle.Bold), funcs['title']);
-		this.elems.artist = new Label(0, 190, winW - winH, 50,
-				['select', 'stop', 'resize'], '', colours.White, util.getFont(null, 24, FontStyle.Bold), funcs['artist']);
-		this.elems.artwork = new Artwork(winW - winH, 0, winH, winH, ['select', 'stop', 'resize'], colours.White);
+		return {
+			topBar: {
+				type: 'fill',
+				sizeDef: [0, 0, 'winW - winH', topH],
+				events: ['resize'],
+				bgColor: RGB(0, 84, 167)
+			},
+			playlist: {
+				type: 'label',
+				sizeDef: [0, 0, 100, topH],
+				events: ['select', 'switch'],
+				text: '- [ - / - ]',
+				color: colours.White,
+				font: util.getFont(),
+			},
+			time: {
+				type: 'label',
+				sizeDef: ['playlist,right,50', 0, 100, topH],
+				events: ['select', 'time', 'stop'],
+				text: '--:-- / --:-- (-%)',
+				color: colours.White,
+				font: util.getFont(),
+			},
+			buttonBar: {
+				type: 'fill',
+				sizeDef: [0, 'topBar,bottom,0', 'winW - winH', btnS],
+				events: ['resize'],
+				bgColor: RGB(230, 230, 230)
+			},
+			stop: {
+				type: 'button',
+				sizeDef: [5, 'topBar,bottom,0', btnS, btnS],
+				img: 'stop.png',
+			},
+			play: {
+				type: 'button',
+				sizeDef: ['stop,right,10', 'topBar,bottom,0', btnS, btnS],
+				img: 'play.png',
+			},
+			pause: {
+				type: 'button',
+				sizeDef: ['play,right,10', 'topBar,bottom,0', btnS, btnS],
+				img: 'pause.png',
+			},
+			prev: {
+				type: 'button',
+				sizeDef: ['pause,right,10', 'topBar,bottom,0', btnS, btnS],
+				img: 'prev.png',
+			},
+			next: {
+				type: 'button',
+				sizeDef: ['prev,right,10', 'topBar,bottom,0', btnS, btnS],
+				img: 'next.png',
+			},
+			setting: {
+				type: 'button',
+				sizeDef: ['next,right,10', 'topBar,bottom,0', btnS, btnS],
+				img: 'gear.png',
+			},
+			tweet: {
+				type: 'button',
+				sizeDef: ['setting,right,10', 'topBar,bottom,0', btnS, btnS],
+				img: 'twibird.png',
+			},
+			yearType: {
+				type: 'label',
+				sizeDef: [0, 'buttonBar,bottom,5', 'winW - winH', 40],
+				events: ['select', 'stop', 'resize'],
+				text: '',
+				color: RGB(230, 230, 230),
+				font: util.getFont(null, 18, FontStyle.Bold)
+			},
+			tieUp: {
+				type: 'label',
+				sizeDef: [0, 'yearType,bottom,-15', 'winW - winH', 50],
+				events: ['select', 'stop', 'resize'],
+				text: '',
+				color: colours.White,
+				font: util.getFont(null, 24, FontStyle.Bold)
+			},
+			title: {
+				type: 'label',
+				sizeDef: [0, 'tieUp,bottom,-5', 'winW - winH', 55],
+				events: ['select', 'stop', 'resize'],
+				text: '',
+				color: colours.White,
+				font: util.getFont(null, 30, FontStyle.Bold)
+			},
+			artist: {
+				type: 'label',
+				sizeDef: [0, 'title,bottom,0', 'winW - winH', 50],
+				events: ['select', 'stop', 'resize'],
+				text: '',
+				color: colours.White,
+				font: util.getFont(null, 24, FontStyle.Bold)
+			},
+			artwork: {
+				type: 'artwork',
+				sizeDef: ['winW - winH', 0, 'winH', 'winH'],
+				events: ['select', 'stop', 'resize'],
+				bgColor: colours.White
+			}
+		};
+	}
+	onResize(width, height) {
+		this.panelSize = [width, height];
+		!this.elems.isEmpty() && this.resizeElements();
+	}
+	resizeElements() {
+		Object.values(this.elems).forEach(elem => {
+			elem.setSize();
+			elem.repaint();
+		});
 	}
 	getElement(id) {
 		return this.elems[id];
 	}
-	clicked(x, y) {
+	onClick(x, y) {
 		Object.values(this.elems).forEach(elem => {
-			elem.hover(x, y) && elem.clicked();
+			elem.hover(x, y) && elem.onClick();
 		});
 	}
 	repaint(event) {
@@ -66,7 +184,7 @@ class IntroPanel {
 	onSongSelect(handle) {
 		pauseFlg && fb.Pause();
 		if (middlePlayFlg) {
-			fb.PlaybackTime = util.calcMiddlePosition(fb.PlaybackLength);
+			fb.PlaybackTime = util.calcMiddlePos(fb.PlaybackLength);
 		}
 		this.showSongInfo(handle);
 	}
@@ -89,14 +207,14 @@ class IntroPanel {
 		this.elems.tieUp.setText(util.evalTitleFormat('%tie_up%', this.currentHandle));
 		this.elems.title.setText(util.evalTitleFormat('%title%', this.currentHandle));
 		this.elems.artist.setText(util.evalTitleFormat('%artist%', this.currentHandle));
-		this.elems.artwork.setImage(utils.GetAlbumArtEmbedded(this.currentHandle.RawPath));
+		this.elems.artwork.setImg(utils.GetAlbumArtEmbedded(this.currentHandle.RawPath));
 	}
 	clearSongInfo() {
 		this.elems.yearType.setText('');
 		this.elems.tieUp.setText('');
 		this.elems.title.setText('');
 		this.elems.artist.setText('');
-		this.elems.artwork.setImage(null);
+		this.elems.artwork.setImg(null);
 	}
 	clipSongInfo() {
 		const songInfo = util.evalTitleFormat(copyFormat, this.currentHandle);
@@ -111,42 +229,36 @@ class IntroPanel {
 	clearTime() {
 		this.elems.time.setText('--:-- / --:-- (-%)');
 	}
-	getCursorPos() {
-		return this.cursorPos;
+	setCursorPos(x, y) {
+		this.cursorPos = [x, y];
+		pWindow.SetCursor(this.getHoveringElem() ? IDC_HAND : IDC_ARROW);
 	}
 	getHoveringElem() {
 		return Object.values(this.elems).find(elem => elem.hover(...this.cursorPos));
 	}
-	toggleCursor(x, y) {
-		this.cursorPos = [x, y];
-		pWindow.SetCursor(this.getHoveringElem() ? IDC_HAND : IDC_ARROW);
-	}
-	recordSabi() {
+	saveSabi() {
 		if (fb.PlaybackTime === 0) {
 			return;
 		}
+		const sabiPos = fb.PlaybackTime;
 		const handleList = new FbMetadbHandleList();
 		handleList.Add(this.currentHandle);
-		handleList.UpdateFileInfoFromJSON(JSON.stringify({
-			sabi: fb.PlaybackTime
-		}));
-		fb.ShowPopupMessage(`sabi : ${util.formatTime(fb.PlaybackTime)}`);
+		handleList.UpdateFileInfoFromJSON(JSON.stringify({ sabi: sabiPos }));
+		fb.ShowPopupMessage(`Sabi Position : ${util.formatTime(sabiPos)} s`);
 	}
 	jumpToSabi() {
-		const sabiPos = Number(util.evalTitleFormat('%sabi%', this.currentHandle));
+		const sabiPos = parseFloat(util.evalTitleFormat('%sabi%', this.currentHandle));
 		if (isNaN(sabiPos)) {
 			return;
 		}
-		fb.PlaybackTime = Number(sabiPos);
+		fb.PlaybackTime = parseFloat(sabiPos);
 	}
 	onScroll(direction) {
 		if (!utils.IsKeyPressed(VK_CONTROL)) {
 			return;
 		}
 		const elem = this.getHoveringElem();
-		if (elem instanceof Label) {
-			elem.changeFontSize(1 * direction);
-		}
+		elem instanceof Label && elem.changeFontSize(1 * direction);
 	}
 	onKeyPress(vkey) {
 		switch (vkey) {
@@ -160,23 +272,51 @@ class IntroPanel {
 				utils.IsKeyPressed(VK_CONTROL) && pWindow.Reload();
 				break;
 			case 0x53: // Alt + S
-				utils.IsKeyPressed(VK_ALT) && this.recordSabi();
+				utils.IsKeyPressed(VK_ALT) && this.saveSabi();
 				break;
 		}
 	}
 }
 
 class UI {
-	constructor(x, y, w, h, events, func) {
-		this.x = x;
-		this.y = y;
-		this.w = w;
-		this.h = h;
-		this.coord = [x, y, w, h];
+	constructor(sizeDef, events, func) {
+		this.sizeDef = sizeDef;
+		this.setSize();
 		this.events = events;
 		this.callback = func;
 	}
-	getPosition(edge) {
+	setSize() {
+		[this.x, this.y, this.w, this.h] = this.rect = this.calcRect();
+	}
+	/** @returns {number[]} */
+	calcRect() {
+		return this.sizeDef.map(v => {
+			if (typeof v !== 'string') {
+				return v;
+			}
+			if (!v.includes(',')) {
+				return Function(`'use strict'; const [winW, winH] = [${panel.panelSize}]; return ${v};`)();
+			}
+			const [id, edge, margin] = v.split(',');
+			return panel.getElement(id).getOffset(edge) + parseFloat(margin);
+		});
+	}
+	repaint(event) {
+		if (!event || (Array.isArray(this.events) && this.events.includes(event))) {
+			pWindow.RepaintRect(...this.rect);
+		}
+	}
+	hover(x, y) {
+		if (!this.callback) {
+			return false;
+		}
+		return this.getOffset('left') <= x && x <= this.getOffset('right')
+				&& this.getOffset('top') <= y && y <= this.getOffset('bottom');
+	}
+	onClick() {
+		this.callback && this.callback();
+	}
+	getOffset(edge) {
 		switch (edge) {
 			case 'left':
 				return this.x;
@@ -190,48 +330,33 @@ class UI {
 				return NaN;
 		}
 	}
-	repaint(event) {
-		if (Array.isArray(this.events) && this.events.includes(event)) {
-			pWindow.RepaintRect(...this.coord);
-		}
-	}
-	hover(x, y) {
-		if (!this.callback) {
-			return false;
-		}
-		return this.x <= x && x <= this.x + this.w 
-				&& this.y <= y && y <= this.y + this.h;
-	}
-	clicked() {
-		this.callback && this.callback();
-	}
 }
 
 class Fill extends UI {
-	constructor(x, y, w, h, events, bgColor) {
-		super(x, y, w, h, events, null);
+	constructor(sizeDef, events, bgColor) {
+		super(sizeDef, events, null);
 		this.bgColor = bgColor;
 	}
 	/** @param {GdiGraphics} gr */
 	draw(gr) {
-		this.bgColor && gr.FillSolidRect(...this.coord, this.bgColor);
+		this.bgColor && gr.FillSolidRect(...this.rect, this.bgColor);
 	}
 }
 
 class Button extends UI {
-	constructor(x, y, w, h, imgName, func) {
-		super(x, y, w, h, null, func);
+	constructor(sizeDef, imgName, func) {
+		super(sizeDef, null, func);
 		this.img = gdi.Image(ImgPath + imgName);
 	}
 	/** @param {GdiGraphics} gr */
 	draw(gr) {
-		gr.DrawImage(this.img, ...this.coord, 0, 0, this.img.Width, this.img.Height);
+		gr.DrawImage(this.img, ...this.rect, 0, 0, this.img.Width, this.img.Height);
 	}
 }
 
 class Label extends UI {
-	constructor(x, y, w, h, events, text, color, font, func) {
-		super(x, y, w, h, events, func);
+	constructor(sizeDef, events, text, color, font, func) {
+		super(sizeDef, events, func);
 		this.text = text;
 		this.color = color;
 		/** @type {GdiFont} */
@@ -245,6 +370,14 @@ class Label extends UI {
 		gr.GdiDrawText(this.text, this.font, this.color,
 				this.x + 10, this.y + 5, this.w - 10, this.h - 5, DT_NOPREFIX | DT_END_ELLIPSIS);
 	}
+	/** @param {GdiGraphics} gr */
+	setWidth(gr) {
+		if (typeof this.sizeDef[2] === 'number') {
+			this.sizeDef[2] = gr.CalcTextWidth(this.text, this.font) + 25;
+			this.setSize();
+		}
+	}
+	/** @override */
 	hover(x, y) {
 		if (!panel.handling()) {
 			return false;
@@ -253,7 +386,7 @@ class Label extends UI {
 	}
 	changeFontSize(delta) {
 		this.font = util.getFont(this.font.Name, this.font.Size + delta, this.font.Style);
-		pWindow.RepaintRect(...this.coord);
+		pWindow.RepaintRect(...this.rect);
 	}
 	setText(text) {
 		this.text = text;
@@ -261,8 +394,8 @@ class Label extends UI {
 }
 
 class Artwork extends UI {
-	constructor(x, y, w, h, events, bgColor) {
-		super(x, y, w, h, events, null);
+	constructor(sizeDef, events, bgColor) {
+		super(sizeDef, events, null);
 		this.bgColor = bgColor;
 		/** @type {GdiBitmap} */
 		this.img = null;
@@ -270,12 +403,12 @@ class Artwork extends UI {
 	}
 	/** @param {GdiGraphics} gr */
 	draw(gr) {
-		this.bgColor && gr.FillSolidRect(...this.coord, this.bgColor);
+		this.bgColor && gr.FillSolidRect(...this.rect, this.bgColor);
 		const showImg = this.img || this.noImage;
-		const imgCoord = this.calcImgCoord(showImg.Width, showImg.Height);
-		gr.DrawImage(showImg, ...imgCoord, 0, 0, showImg.Width, showImg.Height);
+		const imgRect = this.calcImgRect(showImg.Width, showImg.Height);
+		gr.DrawImage(showImg, ...imgRect, 0, 0, showImg.Width, showImg.Height);
 	}
-	calcImgCoord(imgW, imgH) {
+	calcImgRect(imgW, imgH) {
 		let dstX, dstY, dstW, dstH;
 		if (imgW < imgH) {
 			dstY = this.y;
@@ -290,7 +423,7 @@ class Artwork extends UI {
 		}
 		return [dstX, dstY, dstW, dstH];
 	}
-	setImage(img) {
+	setImg(img) {
 		this.img = img;
 	}
 }
@@ -298,17 +431,15 @@ class Artwork extends UI {
 class Twitter {
 	constructor(screenName) {
 		this.screenName = screenName;
-		const credential = util.getJSON(`${RootPath}data\\credentials.json`)[this.screenName];
+		const credential = util.parseJSON(`${RootPath}data\\credentials.json`)[this.screenName];
 		if (credential) {
-			pWindow.SetProperty('TWITTER_CONSUMER_KEY', credential.consumer_key);
-			pWindow.SetProperty('TWITTER_CONSUMER_SECRET', credential.consumer_secret);
-			pWindow.SetProperty('TWITTER_TOKEN_KEY', credential.access_token_key);
-			pWindow.SetProperty('TWITTER_TOKEN_SECRET', credential.access_token_secret);
+			pWindow.SetProperty('TWITTER_CREDENTIAL', JSON.stringify(credential));
 		}
-		this.consumerKey = pWindow.GetProperty('TWITTER_CONSUMER_KEY');
-		this.consumerSecret = pWindow.GetProperty('TWITTER_CONSUMER_SECRET');
-		this.tokenKey = pWindow.GetProperty('TWITTER_TOKEN_KEY');
-		this.tokenSecret = pWindow.GetProperty('TWITTER_TOKEN_SECRET');
+		const savedCredential = JSON.parse(pWindow.GetProperty('TWITTER_CREDENTIAL', '{}'));
+		this.consumerKey = savedCredential.consumer_key;
+		this.consumerSecret = savedCredential.consumer_secret;
+		this.tokenKey = savedCredential.access_token_key;
+		this.tokenSecret = savedCredential.access_token_secret;
 		this.tweetFormat = pWindow.GetProperty('TWEET_FORMAT', `${copyFormat} #NowPlaying`);
 	}
 	postNowPlaying() {
@@ -361,8 +492,8 @@ class Twitter {
 		};
 		xhr.send(null);
 	}
-	getMediaId(tmpImgPath) {
-		const mediaData = util.encodeBase64(tmpImgPath);
+	getMediaId(path) {
+		const mediaData = util.encodeBase64(path);
 		const boundary = Math.random().toString(36).slice(2);
 		const body = `--${boundary}\r\nContent-Disposition: form-data; name="media_data"; \r\n\r\n${mediaData}\r\n--${boundary}--\r\n\r\n`;
 		const url = this.getUrl(this.getMediaMessage());
@@ -426,6 +557,24 @@ class Twitter {
 }
 
 const funcs = {
+	createMenus: () => {
+		const baseSearchMenu = () => {
+			const menu = pWindow.CreatePopupMenu();
+			menu.AppendMenuItem(MF_ENABLED, 1, 'Google');
+			menu.AppendMenuItem(MF_ENABLED, 2, 'Anison Generation');
+			menu.AppendMenuItem(MF_ENABLED, 3, 'ErogameScape');
+			menu.AppendMenuItem(MF_ENABLED, 4, 'Wikipedia');
+			return menu;
+		};
+		return {
+			searchTieUp: baseSearchMenu(),
+			searchTitle: (menu => {
+				menu.AppendMenuItem(MF_ENABLED, 5, 'J-WID');
+				return menu;
+			})(baseSearchMenu()),
+			searchArtist: baseSearchMenu()
+		};
+	},
 	stop: () => fb.Stop(),
 	play: () => fb.Play(),
 	pause: () => fb.Pause(),
@@ -436,7 +585,7 @@ const funcs = {
 		mainMenu.AppendMenuItem(pauseFlg ? MF_CHECKED : MF_UNCHECKED, 1, 'PAUSE_SELECT');
 		mainMenu.AppendMenuItem(middlePlayFlg ? MF_CHECKED : MF_UNCHECKED, 2, 'MIDDLE_PLAY');
 		const elem = panel.getElement('setting');
-		switch (mainMenu.TrackPopupMenu(elem.getPosition('left'), elem.getPosition('bottom'))) {
+		switch (mainMenu.TrackPopupMenu(elem.getOffset('left'), elem.getOffset('bottom'))) {
 			case 1:
 				pauseFlg = !pauseFlg;
 				pWindow.SetProperty('PAUSE_SELECT', pauseFlg);
@@ -452,67 +601,63 @@ const funcs = {
 		twitter.postNowPlayingWithImg();
 	},
 	tieUp: () => {
-		const tieUp = encodeURIComponent(util.evalTitleFormat('%tie_up%', fb.GetNowPlaying()));
-		switch (util.showPopupMenu(menus.search)) {
+		const encodedTieUp = encodeURIComponent(util.evalTitleFormat('%tie_up%', fb.GetNowPlaying()));
+		switch (util.showMenuOnCursor(menus.searchTieUp)) {
 			case 1:
-				util.openUrl(`https://www.google.com/search?q=${tieUp}`);
+				util.openUrl(`https://www.google.com/search?q=${encodedTieUp}`);
 				break;
 			case 2:
-				util.openUrl(`http://anison.info/data/n.php?m=pro&q=${tieUp}`);
+				util.openUrl(`http://anison.info/data/n.php?m=pro&q=${encodedTieUp}`);
 				break;
 			case 3:
-				util.openUrl(`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/kensaku.php?category=game&word_category=name&word=${tieUp}`);
+				util.openUrl(`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/kensaku.php?category=game&word_category=name&word=${encodedTieUp}`);
 				break;
 			case 4:
-				util.openUrl(`https://ja.wikipedia.org/w/index.php?search=${tieUp}`);
+				util.openUrl(`https://ja.wikipedia.org/w/index.php?search=${encodedTieUp}`);
 				break;
 		}
 	},
 	title: () => {
-		const title = encodeURIComponent(util.evalTitleFormat('%title%', fb.GetNowPlaying()));
-		switch (util.showPopupMenu(menus.search)) {
+		const title = util.evalTitleFormat('%title%', fb.GetNowPlaying());
+		const encodedTitle = encodeURIComponent(title);
+		switch (util.showMenuOnCursor(menus.searchTitle)) {
 			case 1:
-				util.openUrl(`https://www.google.com/search?q=${title}`);
+				util.openUrl(`https://www.google.com/search?q=${encodedTitle}`);
 				break;
 			case 2:
-				util.openUrl(`http://anison.info/data/n.php?m=song&q=${title}`);
+				util.openUrl(`http://anison.info/data/n.php?m=song&q=${encodedTitle}`);
 				break;
 			case 3:
-				util.openUrl(`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/kensaku.php?category=music&word_category=name&word=${title}`);
+				util.openUrl(`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/kensaku.php?category=music&word_category=name&word=${encodedTitle}`);
 				break;
 			case 4:
-				util.openUrl(`https://ja.wikipedia.org/w/index.php?search=${title}`);
+				util.openUrl(`https://ja.wikipedia.org/w/index.php?search=${encodedTitle}`);
+				break;
+			case 5:
+				util.openUrl(`http://www2.jasrac.or.jp/eJwid/main?trxID=A00401-3&IN_WORKS_TITLE_NAME1=${EscapeSJIS(title)}&IN_WORKS_TITLE_OPTION1=2&IN_WORKS_TITLE_TYPE1=0&IN_DEFAULT_SEARCH_WORKS_NAIGAI=0&IN_DEFAULT_WORKS_KOUHO_MAX=20&IN_DEFAULT_WORKS_KOUHO_SEQ=1&RESULT_CURRENT_PAGE=1`);
 				break;
 		}
 	},
 	artist: () => {
-		const artist = encodeURIComponent(util.evalTitleFormat('%artist%', fb.GetNowPlaying()));
-		switch (util.showPopupMenu(menus.search)) {
+		const encodedArtist = encodeURIComponent(util.evalTitleFormat('%artist%', fb.GetNowPlaying()));
+		switch (util.showMenuOnCursor(menus.searchArtist)) {
 			case 1:
-				util.openUrl(`https://www.google.com/search?q=${artist}`);
+				util.openUrl(`https://www.google.com/search?q=${encodedArtist}`);
 				break;
 			case 2:
-				util.openUrl(`http://anison.info/data/n.php?m=person&q=${artist}`);
+				util.openUrl(`http://anison.info/data/n.php?m=person&q=${encodedArtist}`);
 				break;
 			case 3:
-				util.openUrl(`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/kensaku.php?category=creater&word_category=name&word=${artist}`);
+				util.openUrl(`https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/kensaku.php?category=creater&word_category=name&word=${encodedArtist}`);
 				break;
 			case 4:
-				util.openUrl(`https://ja.wikipedia.org/w/index.php?search=${artist}`);
+				util.openUrl(`https://ja.wikipedia.org/w/index.php?search=${encodedArtist}`);
 				break;
 		}
 	}
 };
 
 const util = {
-	// evalPosition: (coord) => {
-	// 	return coord.map(v => {
-	// 		if (typeof v !== 'string') {
-	// 			return v;
-	// 		}
-	// 		const [id, edge, margin] = v.split(',');
-	// 	});
-	// },
 	getFont: (name = 'Meiryo UI', size = 15, style = FontStyle.Regular) => {
 		try {
 			return gdi.Font(name, size, style);
@@ -527,27 +672,31 @@ const util = {
 		return `${minutes}:${seconds}`;
 	},
 	zeroPad: (val, length) => {
-		return ('0'.repeat(length) + val).slice(length * -1);
+		return ('0'.repeat(length) + val).slice(-length);
 	},
-	getJSON: (path) => {
+	parseJSON: (path) => {
 		const text = utils.ReadTextFile(path, 65001);
-		return text ? JSON.parse(text) : {};
+		try {
+			return JSON.parse(text);
+		} catch (e) {
+			return {};
+		}
 	},
 	evalTitleFormat: (query, handle) => {
 		const tf = fb.TitleFormat(query);
 		return handle ? tf.EvalWithMetadb(handle) : tf.Eval(true);
 	},
 	formatYearType: (year, type) => {
-		const match = year.match(/^(\d{4})(\w+)$/);
-		return match === null ? `${year}  ${type}` : `${match[1]}  ${match[2]}-${type}`;
+		const matched = year.match(/^(\d{4})(\w+)$/);
+		return matched === null ? `${year}  ${type}` : `${matched[1]}  ${matched[2]}-${type}`;
 	},
-	calcMiddlePosition: (length) => {
-		const match = middlePlayPos.match(/^(\d+)_(\d+)%$/);
-		if (match === null) {
+	calcMiddlePos: (length) => {
+		const matched = middlePlayPos.match(/^(\d+)[_-](\d+)%$/);
+		if (matched === null) {
 			return 0;
 		}
-		const from = parseInt(match[1], 10);
-		const to = parseInt(match[2], 10);
+		const from = parseInt(matched[1], 10);
+		const to = parseInt(matched[2], 10);
 		const percent = from + (to - from) * Math.random();
 		return length * percent / 100;
 	},
@@ -564,20 +713,9 @@ const util = {
 		}
 		return chars.join('');
 	},
-	createMenus: () => {
-		return {
-			search: (() => {
-				const menu = pWindow.CreatePopupMenu();
-				menu.AppendMenuItem(MF_ENABLED, 1, 'Google');
-				menu.AppendMenuItem(MF_ENABLED, 2, 'Anison Generation');
-				menu.AppendMenuItem(MF_ENABLED, 3, 'ErogameScape');
-				menu.AppendMenuItem(MF_ENABLED, 4, 'Wikipedia');
-				return menu;
-			})()
-		};
-	},
-	showPopupMenu: (menu) => {
-		return menu.TrackPopupMenu(...panel.getCursorPos());
+	/** @param {MenuObject} menu */
+	showMenuOnCursor: (menu) => {
+		return menu.TrackPopupMenu(...panel.cursorPos);
 	},
 	openUrl: (url) => {
 		const wsh = new ActiveXObject('WScript.Shell');
@@ -616,6 +754,7 @@ const RootPath = `${fb.ComponentPath}ranaIntroPanel\\`;
 const ImgPath = `${RootPath}img\\`;
 include(`${RootPath}lib\\oauth.js`);
 include(`${RootPath}lib\\sha1.js`);
+include(`${RootPath}lib\\ecl.js`);
 
 let pauseFlg = pWindow.GetProperty('PAUSE_SELECT', true);
 let middlePlayFlg = pWindow.GetProperty('MIDDLE_PLAY', false);
@@ -623,9 +762,9 @@ let middlePlayPos = pWindow.GetProperty('MIDDLE_PLAY_POSITION', '10_90%');
 let copyFormat = pWindow.GetProperty('COPY_FORMAT', '%title% / %artist%');
 let screenName = pWindow.GetProperty('TWITTER_SCREEN_NAME', 'rana_intro');
 
-const menus = util.createMenus();
 const panel = new IntroPanel();
 const twitter = new Twitter(screenName);
+const menus = funcs.createMenus();
 
 /* ↓ Callbacks ↓ */
 
@@ -663,11 +802,11 @@ function on_playlist_items_selection_change() {
 }
 
 function on_mouse_lbtn_up(x, y, mask) {
-	panel.clicked(x, y);
+	panel.onClick(x, y);
 }
 
 function on_mouse_move(x, y, mask) {
-	panel.toggleCursor(x, y);
+	panel.setCursorPos(x, y);
 }
 
 function on_mouse_wheel(step) {
@@ -679,6 +818,7 @@ function on_key_down(vkey) {
 	panel.onKeyPress(vkey);
 }
 
-function on_size(w, h) {
-	panel.repaint('resize');
+function on_size(width, height) {
+	// console.log('on_size');
+	panel.onResize(width, height);
 }
