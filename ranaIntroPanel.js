@@ -70,7 +70,7 @@ class IntroPanel {
 			},
 			time: {
 				type: 'label',
-				sizeDef: ['playlist,right,50', 0, 100, topH],
+				sizeDef: ['playlist,right,25', 0, 100, topH],
 				events: ['select', 'time', 'stop'],
 				text: '--:-- / --:-- (-%)',
 				color: colours.White,
@@ -163,7 +163,7 @@ class IntroPanel {
 	}
 	resizeElements() {
 		Object.values(this.elems).forEach(elem => {
-			elem.setSize();
+			elem.calcRect();
 			elem.repaint();
 		});
 	}
@@ -244,28 +244,26 @@ class IntroPanel {
 		const handleList = new FbMetadbHandleList();
 		handleList.Add(this.currentHandle);
 		handleList.UpdateFileInfoFromJSON(JSON.stringify({ sabi: sabiPos }));
-		fb.ShowPopupMessage(`Sabi Position : ${util.formatTime(sabiPos)} s`);
+		fb.ShowPopupMessage(`Sabi position was set to ${util.formatTime(sabiPos)}`);
 	}
 	jumpToSabi() {
 		const sabiPos = parseFloat(util.evalTitleFormat('%sabi%', this.currentHandle));
-		if (isNaN(sabiPos)) {
-			return;
+		if (!isNaN(sabiPos)) {
+			fb.PlaybackTime = sabiPos;
 		}
-		fb.PlaybackTime = parseFloat(sabiPos);
 	}
 	onScroll(direction) {
-		if (!utils.IsKeyPressed(VK_CONTROL)) {
-			return;
+		if (utils.IsKeyPressed(VK_CONTROL)) {
+			const elem = this.getHoveringElem();
+			elem instanceof Label && elem.changeFontSize(1 * direction);
 		}
-		const elem = this.getHoveringElem();
-		elem instanceof Label && elem.changeFontSize(1 * direction);
 	}
 	onKeyPress(vkey) {
 		switch (vkey) {
 			case 0x43: // Ctrl + C
 				utils.IsKeyPressed(VK_CONTROL) && this.clipSongInfo();
 				break;
-			case 0x4a: // Alt + J
+			case 0x4A: // Alt + J
 				utils.IsKeyPressed(VK_ALT) && this.jumpToSabi();
 				break;
 			case 0x52: // Ctrl + R
@@ -280,17 +278,15 @@ class IntroPanel {
 
 class UI {
 	constructor(sizeDef, events, func) {
+		/** @type {any[]} */
 		this.sizeDef = sizeDef;
-		this.setSize();
+		this.calcRect();
 		this.events = events;
 		this.callback = func;
 	}
-	setSize() {
-		[this.x, this.y, this.w, this.h] = this.rect = this.calcRect();
-	}
-	/** @returns {number[]} */
 	calcRect() {
-		return this.sizeDef.map(v => {
+		/** @type {number[]} */
+		const rect = this.sizeDef.map(v => {
 			if (typeof v !== 'string') {
 				return v;
 			}
@@ -300,6 +296,7 @@ class UI {
 			const [id, edge, margin] = v.split(',');
 			return panel.getElement(id).getOffset(edge) + parseFloat(margin);
 		});
+		[this.x, this.y, this.w, this.h] = this.rect = rect;
 	}
 	repaint(event) {
 		if (!event || (Array.isArray(this.events) && this.events.includes(event))) {
@@ -374,7 +371,7 @@ class Label extends UI {
 	setWidth(gr) {
 		if (typeof this.sizeDef[2] === 'number') {
 			this.sizeDef[2] = gr.CalcTextWidth(this.text, this.font) + 25;
-			this.setSize();
+			this.calcRect();
 		}
 	}
 	/** @override */
@@ -485,9 +482,9 @@ class Twitter {
 			if (xhr.status === 200) {
 				const response = JSON.parse(xhr.responseText);
 				console.log(JSON.stringify(response, null, 2));
-				fb.ShowPopupMessage(`Tweet Posted.\n\n${this.screenName}: ${response.text}`);
+				fb.ShowPopupMessage(`Tweet was successfully posted.\n\n${this.screenName}: ${response.text}`);
 			} else {
-				fb.ShowPopupMessage(`Could not post tweet. (Status Code: ${status}, Status Text: ${xhr.statusText})`);
+				fb.ShowPopupMessage(`Could not post tweet. (StatusCode: ${status}, StatusText: ${xhr.statusText})`);
 			}
 		};
 		xhr.send(null);
@@ -584,8 +581,8 @@ const funcs = {
 		const mainMenu = pWindow.CreatePopupMenu();
 		mainMenu.AppendMenuItem(pauseFlg ? MF_CHECKED : MF_UNCHECKED, 1, 'PAUSE_SELECT');
 		mainMenu.AppendMenuItem(middlePlayFlg ? MF_CHECKED : MF_UNCHECKED, 2, 'MIDDLE_PLAY');
-		const elem = panel.getElement('setting');
-		switch (mainMenu.TrackPopupMenu(elem.getOffset('left'), elem.getOffset('bottom'))) {
+		const btn = panel.getElement('setting');
+		switch (mainMenu.TrackPopupMenu(btn.getOffset('left'), btn.getOffset('bottom'))) {
 			case 1:
 				pauseFlg = !pauseFlg;
 				pWindow.SetProperty('PAUSE_SELECT', pauseFlg);
@@ -814,7 +811,7 @@ function on_mouse_wheel(step) {
 }
 
 function on_key_down(vkey) {
-	console.log(`on_key_down: 0x${vkey.toString(16)}`);
+	console.log(`on_key_down: 0x${vkey.toString(16).toUpperCase()}`);
 	panel.onKeyPress(vkey);
 }
 
