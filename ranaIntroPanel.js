@@ -159,7 +159,7 @@ class IntroPanel {
     }
     onResize(width, height) {
         this.panelSize = [width, height];
-        !this.elems.isEmpty() && this.resizeElements();
+        this.elems.isEmpty() || this.resizeElements();
     }
     resizeElements() {
         Object.values(this.elems).forEach(elem => {
@@ -729,10 +729,10 @@ const util = {
         stream.Open();
         stream.LoadFromFile(path);
         const binaryData = stream.Read(-1);
-        const elem = new ActiveXObject('MSXML2.DOMDocument').createElement('base64');
-        elem.dataType = 'bin.base64';
-        elem.nodeTypedValue = binaryData;
-        return elem.text;
+        const base64 = new ActiveXObject('MSXML2.DOMDocument').createElement('base64');
+        base64.dataType = 'bin.base64';
+        base64.nodeTypedValue = binaryData;
+        return base64.text;
     }
 };
 
