@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ツイート編集</title>
+    <style>
+        body {
+            text-align: center;
+            font-family: 'Meiryo';
+            background-color: #e6e6e6;
+        }
+
+        #text {
+            width: 700px;
+            height: 200px;
+            overflow: auto;
+            font-family: 'Meiryo';
+            font-size: 20px;
+            background-color: #323232;
+            color: #ffffff;
+        }
+
+        #tweet {
+            margin-top: 20px;
+            margin-bottom: 20px;
+            font-size: 20px;
+            background-color: #323232;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <textarea id="text"></textarea>
+    </div>
+    <div>
+        <button id="tweet">ツイート</button>
+    </div>
+    <script>
+        (function () {
+
+            var args = window.external.dialogArguments.toArray();
+
+            document.getElementById('text').value = args[0];
+            var mediaId = args[1];
+            var callback = args[2];
+
+            document.getElementById('tweet').onclick = function () {
+                var text = document.getElementById('text').value;
+                callback && callback(text, mediaId);
+                window.close();
+            };
+
+        })();
+    </script>
+</body>
+</html>

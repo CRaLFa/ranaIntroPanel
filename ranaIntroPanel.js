@@ -447,7 +447,8 @@ class Twitter {
         if (currentHandle === null) {
             return;
         }
-        this.postTweet(util.evalTitleFormat(this.tweetFormat, currentHandle), null);
+        const text = util.evalTitleFormat(this.tweetFormat, currentHandle);
+        this.showTweetDialog(text, null);
     }
     async postNowPlayingWithImg() {
         if (!this.consumerKey) {
@@ -460,15 +461,23 @@ class Twitter {
         const text = util.evalTitleFormat(this.tweetFormat, currentHandle);
         const img = utils.GetAlbumArtEmbedded(currentHandle.RawPath);
         if (!img) {
-            this.postTweet(text, null);
+            this.showTweetDialog(text, null);
             return;
         }
-        const tmpImgPath = `${RootPath}tmp\\artwork_${Date.now()}.png`;
-        img.SaveAs(tmpImgPath, 'image/png');
+        const tmpImgPath = `${RootPath}tmp\\artwork_${Date.now()}.jpg`;
+        img.SaveAs(tmpImgPath, 'image/jpeg');
         const mediaId = await this.getMediaId(tmpImgPath).catch(() => null);
-        this.postTweet(text, mediaId);
+        this.showTweetDialog(text, mediaId);
         const fso = new ActiveXObject('Scripting.FileSystemObject');
         fso.DeleteFile(tmpImgPath);
+    }
+    showTweetDialog(text, mediaId) {
+        const htmlCode = utils.ReadTextFile(`${RootPath}\\html\\tweetDialog.html`, 65001);
+        utils.ShowHtmlDialog(pWindow.ID, htmlCode, {
+            width: 750,
+            height: 350,
+            data: [text, mediaId, funcs.editTweetCallback]
+        });
     }
     postTweet(text, mediaId) {
         const url = this.getUrl(this.getTweetMessage(util.truncate(text, 280), mediaId));
@@ -572,6 +581,7 @@ const funcs = {
             searchArtist: baseSearchMenu()
         };
     },
+    editTweetCallback: (text, mediaId) => twitter.postTweet(text, mediaId),
     stop: () => fb.Stop(),
     play: () => fb.Play(),
     pause: () => fb.Pause(),
@@ -698,6 +708,7 @@ const util = {
         return length * percent / 100;
     },
     truncate: (str, length) => {
+        str = str.trim();
         let count = 0;
         const chars = [];
         for (let i = 0; i < str.length; i++) {
