@@ -429,14 +429,11 @@ class Twitter {
     constructor(screenName) {
         this.screenName = screenName;
         const credential = util.parseJSON(`${RootPath}data\\credentials.json`)[this.screenName];
-        if (credential) {
-            pWindow.SetProperty('TWITTER_CREDENTIAL', JSON.stringify(credential));
-        }
-        const savedCredential = JSON.parse(pWindow.GetProperty('TWITTER_CREDENTIAL', '{}'));
-        this.consumerKey = savedCredential.consumer_key;
-        this.consumerSecret = savedCredential.consumer_secret;
-        this.tokenKey = savedCredential.access_token_key;
-        this.tokenSecret = savedCredential.access_token_secret;
+        credential && pWindow.SetProperty('TWITTER_CREDENTIAL', JSON.stringify(credential));
+        this.consumerKey = credential.consumer_key;
+        this.consumerSecret = credential.consumer_secret;
+        this.tokenKey = credential.access_token_key;
+        this.tokenSecret = credential.access_token_secret;
         this.tweetFormat = pWindow.GetProperty('TWEET_FORMAT', `${copyFormat} #NowPlaying`);
     }
     postNowPlaying() {
@@ -485,15 +482,14 @@ class Twitter {
         xhr.open('POST', url, true);
         xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
         xhr.onreadystatechange = () => {
-            if (xhr.readyState !== 4) {
-                return;
-            }
-            if (xhr.status === 200) {
-                const response = JSON.parse(xhr.responseText);
-                console.log(JSON.stringify(response, null, 2));
-                fb.ShowPopupMessage(`Tweet was successfully posted.\n\n${this.screenName}: ${response.text}`);
-            } else {
-                fb.ShowPopupMessage(`Could not post tweet. (StatusCode: ${status}, StatusText: ${xhr.statusText})`);
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    const response = JSON.parse(xhr.responseText);
+                    console.log(JSON.stringify(response, null, 4));
+                    fb.ShowPopupMessage(`Tweet was successfully posted.\n\n${this.screenName}:\n${response.text}`);
+                } else {
+                    fb.ShowPopupMessage(`Could not post tweet. (StatusCode: ${xhr.status}, StatusText: ${xhr.statusText})`);
+                }
             }
         };
         xhr.send(null);
@@ -508,15 +504,14 @@ class Twitter {
             xhr.open('POST', url, true);
             xhr.setRequestHeader('Content-Type', `multipart/form-data; boundary=${boundary}`);
             xhr.onreadystatechange = () => {
-                if (xhr.readyState !== 4) {
-                    return;
-                }
-                if (xhr.status === 200) {
-                    const response = JSON.parse(xhr.responseText);
-                    console.log(JSON.stringify(response, null, 4));
-                    resolve(response.media_id_string);
-                } else {
-                    reject(xhr.statusText);
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        console.log(JSON.stringify(response, null, 4));
+                        resolve(response.media_id_string);
+                    } else {
+                        reject(xhr.statusText);
+                    }
                 }
             };
             xhr.send(body);
