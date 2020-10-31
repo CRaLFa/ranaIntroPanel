@@ -428,7 +428,7 @@ class Artwork extends UI {
 class Twitter {
     constructor(screenName) {
         this.screenName = screenName;
-        const credential = util.parseJSON(`${RootPath}data\\credentials.json`)[this.screenName];
+        const credential = util.parseJSON(`${RootPath}data\\credentials.json`)[screenName];
         credential && pWindow.SetProperty('TWITTER_CREDENTIAL', JSON.stringify(credential));
         this.consumerKey = credential.consumer_key;
         this.consumerSecret = credential.consumer_secret;
@@ -547,12 +547,11 @@ class Twitter {
         };
     }
     getUrl(message) {
-        const accessor = {
+        OAuth.setTimestampAndNonce(message);
+        OAuth.SignatureMethod.sign(message, {
             consumerSecret: this.consumerSecret,
             tokenSecret: this.tokenSecret
-        };
-        OAuth.setTimestampAndNonce(message);
-        OAuth.SignatureMethod.sign(message, accessor);
+        });
         return OAuth.addToURL(message.action, message.parameters);
     }
 }
@@ -677,9 +676,8 @@ const util = {
         return ('0'.repeat(length) + val).slice(-length);
     },
     parseJSON: (path) => {
-        const text = utils.ReadTextFile(path, 65001);
         try {
-            return JSON.parse(text);
+            return JSON.parse(utils.ReadTextFile(path, 65001));
         } catch (e) {
             return {};
         }
@@ -702,6 +700,7 @@ const util = {
         const percent = from + (to - from) * Math.random();
         return length * percent / 100;
     },
+    /** @param {string} str */
     truncate: (str, length) => {
         str = str.trim();
         let count = 0;
@@ -783,12 +782,12 @@ function on_playback_new_track(handle) {
     panel.repaint('select');
 }
 
-function on_playback_time(time) {
+function on_playback_time(_time) {
     panel.showTime();
     panel.repaint('time');
 }
 
-function on_playback_stop(reason) {
+function on_playback_stop(_reason) {
     panel.showSongInfo(null);
     panel.clearTime();
     panel.repaint('stop');
@@ -804,11 +803,11 @@ function on_playlist_items_selection_change() {
     panel.repaint('switch');
 }
 
-function on_mouse_lbtn_up(x, y, mask) {
+function on_mouse_lbtn_up(x, y, _mask) {
     panel.onClick(x, y);
 }
 
-function on_mouse_move(x, y, mask) {
+function on_mouse_move(x, y, _mask) {
     panel.setCursorPos(x, y);
 }
 
@@ -816,6 +815,7 @@ function on_mouse_wheel(step) {
     panel.onScroll(step);
 }
 
+/** @param {number} vkey */
 function on_key_down(vkey) {
     console.log(`on_key_down: 0x${vkey.toString(16).toUpperCase()}`);
     panel.onKeyPress(vkey);
