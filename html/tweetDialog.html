@@ -41,16 +41,18 @@
         (function () {
 
             var args = window.external.dialogArguments.toArray();
+            var textarea = document.getElementById('text');
 
-            document.getElementById('text').value = args[0];
+            textarea.value = args[0];
             var mediaId = args[1];
             var callback = args[2];
 
             document.getElementById('tweet').onclick = function () {
-                var text = document.getElementById('text').value;
-                callback && callback(text, mediaId);
+                callback && callback(textarea.value, mediaId);
                 window.close();
             };
+
+            textarea.focus();
 
         })();
     </script>

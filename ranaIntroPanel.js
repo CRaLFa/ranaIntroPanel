@@ -183,9 +183,7 @@ class IntroPanel {
     }
     onSongSelect(handle) {
         pauseFlg && fb.Pause();
-        if (middlePlayFlg) {
-            fb.PlaybackTime = util.calcMiddlePos(fb.PlaybackLength);
-        }
+        middlePlayFlg && (fb.PlaybackTime = util.calcMiddlePos(fb.PlaybackLength));
         this.showSongInfo(handle);
     }
     showPlaylistInfo() {
@@ -248,9 +246,7 @@ class IntroPanel {
     }
     jumpToSabi() {
         const sabiPos = parseFloat(util.evalTitleFormat('%sabi%', this.currentHandle));
-        if (!isNaN(sabiPos)) {
-            fb.PlaybackTime = sabiPos;
-        }
+        isNaN(sabiPos) || (fb.PlaybackTime = sabiPos);
     }
     onScroll(direction) {
         if (utils.IsKeyPressed(VK_CONTROL)) {
@@ -437,22 +433,16 @@ class Twitter {
         this.tweetFormat = pWindow.GetProperty('TWEET_FORMAT', `${copyFormat} #NowPlaying`);
     }
     postNowPlaying() {
-        if (!this.consumerKey) {
-            return;
-        }
         const currentHandle = fb.GetNowPlaying();
-        if (currentHandle === null) {
+        if (!this.consumerKey || currentHandle === null) {
             return;
         }
         const text = util.evalTitleFormat(this.tweetFormat, currentHandle);
         this.showTweetDialog(text, null);
     }
     async postNowPlayingWithImg() {
-        if (!this.consumerKey) {
-            return;
-        }
         const currentHandle = fb.GetNowPlaying();
-        if (currentHandle === null) {
+        if (!this.consumerKey || currentHandle === null) {
             return;
         }
         const text = util.evalTitleFormat(this.tweetFormat, currentHandle);
@@ -529,9 +519,7 @@ class Twitter {
                 status: text
             }
         };
-        if (mediaId) {
-            message.parameters.media_ids = mediaId;
-        }
+        mediaId && (message.parameters.media_ids = mediaId);
         return message;
     }
     getMediaMessage() {
