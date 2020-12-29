@@ -120,9 +120,14 @@ class IntroPanel {
                 sizeDef: ['prev,right,10', 'topBar,bottom,0', btnS, btnS],
                 img: 'next.png',
             },
-            save: {
+            clip: {
                 type: 'button',
                 sizeDef: ['next,right,10', 'topBar,bottom,0', btnS, btnS],
+                img: 'clip.png',
+            },
+            save: {
+                type: 'button',
+                sizeDef: ['clip,right,10', 'topBar,bottom,0', btnS, btnS],
                 img: 'save.png',
             },
             jump: {
@@ -600,6 +605,7 @@ const funcs = {
     pause: () => fb.Pause(),
     prev: () => fb.Prev(),
     next: () => fb.Next(),
+    clip: () => panel.clipSongInfo(),
     save: () => panel.saveSabi(),
     jump: () => panel.jumpToSabi(),
     setting: () => {
