@@ -76,6 +76,14 @@ class IntroPanel {
                 color: colours.White,
                 font: util.getFont(),
             },
+            sabi: {
+                type: 'label',
+                sizeDef: ['time,right,25', 0, 100, topH],
+                events: ['select', 'stop'],
+                text: '[--:--]',
+                color: colours.White,
+                font: util.getFont(),
+            },
             buttonBar: {
                 type: 'fill',
                 sizeDef: [0, 'topBar,bottom,0', 'winW - winH', btnS],
@@ -107,9 +115,24 @@ class IntroPanel {
                 sizeDef: ['prev,right,10', 'topBar,bottom,0', btnS, btnS],
                 img: 'next.png',
             },
-            setting: {
+            next: {
+                type: 'button',
+                sizeDef: ['prev,right,10', 'topBar,bottom,0', btnS, btnS],
+                img: 'next.png',
+            },
+            save: {
                 type: 'button',
                 sizeDef: ['next,right,10', 'topBar,bottom,0', btnS, btnS],
+                img: 'save.png',
+            },
+            jump: {
+                type: 'button',
+                sizeDef: ['save,right,10', 'topBar,bottom,0', btnS, btnS],
+                img: 'jump.png',
+            },
+            setting: {
+                type: 'button',
+                sizeDef: ['jump,right,10', 'topBar,bottom,0', btnS, btnS],
                 img: 'gear.png',
             },
             tweet: {
@@ -199,13 +222,15 @@ class IntroPanel {
             this.clearSongInfo();
             return;
         }
-        const year = util.evalTitleFormat('%date%', this.currentHandle);
-        const type = util.evalTitleFormat('%type%', this.currentHandle);
+        const year = util.evalTitleFormat('[%date%]', this.currentHandle);
+        const type = util.evalTitleFormat('[%type%]', this.currentHandle);
         this.elems.yearType.setText(util.formatYearType(year, type));
-        this.elems.tieUp.setText(util.evalTitleFormat('%tie_up%', this.currentHandle));
-        this.elems.title.setText(util.evalTitleFormat('%title%', this.currentHandle));
-        this.elems.artist.setText(util.evalTitleFormat('%artist%', this.currentHandle));
+        this.elems.tieUp.setText(util.evalTitleFormat('[%tie_up%]', this.currentHandle));
+        this.elems.title.setText(util.evalTitleFormat('[%title%]', this.currentHandle));
+        this.elems.artist.setText(util.evalTitleFormat('[%artist%]', this.currentHandle));
         this.elems.artwork.setImg(utils.GetAlbumArtEmbedded(this.currentHandle.RawPath));
+        const sabi = util.getSabiArray(this.currentHandle).map(v => util.formatTime(v)).join(', ');
+        sabi && this.elems.sabi.setText(`[${sabi}]`);
     }
     clearSongInfo() {
         this.elems.yearType.setText('');
@@ -213,6 +238,7 @@ class IntroPanel {
         this.elems.title.setText('');
         this.elems.artist.setText('');
         this.elems.artwork.setImg(null);
+        this.elems.sabi.setText('[--:--]');
     }
     clipSongInfo() {
         const songInfo = util.evalTitleFormat(copyFormat, this.currentHandle);
@@ -235,18 +261,23 @@ class IntroPanel {
         return Object.values(this.elems).find(elem => elem.hover(...this.cursorPos));
     }
     saveSabi() {
-        if (fb.PlaybackTime === 0) {
+        const self = this;
+        const sabiPos = fb.PlaybackTime;
+        if (sabiPos === 0) {
             return;
         }
-        const sabiPos = fb.PlaybackTime;
+        const sabiArray = util.getSabiArray(self.currentHandle);
+        sabiArray.push(sabiPos);
+        sabiArray.sort((a, b) => a - b);
         const handleList = new FbMetadbHandleList();
-        handleList.Add(this.currentHandle);
-        handleList.UpdateFileInfoFromJSON(JSON.stringify({ sabi: sabiPos }));
-        fb.ShowPopupMessage(`Sabi position was set to ${util.formatTime(sabiPos)}`);
+        handleList.Add(self.currentHandle);
+        handleList.UpdateFileInfoFromJSON(JSON.stringify({ sabi: sabiArray }));
+        setTimeout(() => self.showSongInfo(self.currentHandle), 100);
     }
     jumpToSabi() {
-        const sabiPos = parseFloat(util.evalTitleFormat('%sabi%', this.currentHandle));
-        isNaN(sabiPos) || (fb.PlaybackTime = sabiPos);
+        const currentPos = fb.PlaybackTime;
+        const nextSabiPos = util.getSabiArray(this.currentHandle).find(v => v > currentPos);
+        nextSabiPos && (fb.PlaybackTime = nextSabiPos);
     }
     onScroll(direction) {
         if (utils.IsKeyPressed(VK_CONTROL)) {
@@ -360,8 +391,9 @@ class Label extends UI {
         gr.SetTextRenderingHint(TextRenderingHint.ClearTypeGridFit);
         gr.SetSmoothingMode(SmoothingMode.AntiAlias);
         gr.SetInterpolationMode(InterpolationMode.HighQualityBicubic);
-        gr.GdiDrawText(this.text, this.font, this.color,
-                this.x + 10, this.y + 5, this.w - 10, this.h - 5, DT_NOPREFIX | DT_END_ELLIPSIS);
+        const textRect = [this.x + 10, this.y + 5, this.w - 10, this.h - 5];
+        const format = DT_NOPREFIX | DT_END_ELLIPSIS;
+        gr.GdiDrawText(this.text, this.font, this.color, ...textRect, format);
     }
     /** @param {GdiGraphics} gr */
     setWidth(gr) {
@@ -425,19 +457,18 @@ class Twitter {
     constructor(screenName) {
         this.screenName = screenName;
         const credential = util.parseJSON(`${RootPath}data\\credentials.json`)[screenName];
-        credential && pWindow.SetProperty('TWITTER_CREDENTIAL', JSON.stringify(credential));
+        credential && pWindow.SetProperty('TWITTER_CREDENTIAL', JSON.stringify(credential)); // For Debug
         this.consumerKey = credential.consumer_key;
         this.consumerSecret = credential.consumer_secret;
         this.tokenKey = credential.access_token_key;
         this.tokenSecret = credential.access_token_secret;
-        this.tweetFormat = pWindow.GetProperty('TWEET_FORMAT', `${copyFormat} #NowPlaying`);
     }
     postNowPlaying() {
         const currentHandle = fb.GetNowPlaying();
         if (!this.consumerKey || currentHandle === null) {
             return;
         }
-        const text = util.evalTitleFormat(this.tweetFormat, currentHandle);
+        const text = util.evalTitleFormat(tweetFormat, currentHandle);
         this.showTweetDialog(text, null);
     }
     async postNowPlayingWithImg() {
@@ -445,7 +476,7 @@ class Twitter {
         if (!this.consumerKey || currentHandle === null) {
             return;
         }
-        const text = util.evalTitleFormat(this.tweetFormat, currentHandle);
+        const text = util.evalTitleFormat(tweetFormat, currentHandle);
         const img = utils.GetAlbumArtEmbedded(currentHandle.RawPath);
         if (!img) {
             this.showTweetDialog(text, null);
@@ -569,6 +600,8 @@ const funcs = {
     pause: () => fb.Pause(),
     prev: () => fb.Prev(),
     next: () => fb.Next(),
+    save: () => panel.saveSabi(),
+    jump: () => panel.jumpToSabi(),
     setting: () => {
         const mainMenu = pWindow.CreatePopupMenu();
         mainMenu.AppendMenuItem(pauseFlg ? MF_CHECKED : MF_UNCHECKED, 1, 'PAUSE_SELECT');
@@ -590,7 +623,7 @@ const funcs = {
         twitter.postNowPlayingWithImg();
     },
     tieUp: () => {
-        const encodedTieUp = encodeURIComponent(util.evalTitleFormat('%tie_up%', fb.GetNowPlaying()));
+        const encodedTieUp = encodeURIComponent(util.evalTitleFormat('[%tie_up%]', fb.GetNowPlaying()));
         switch (util.showMenuOnCursor(menus.searchTieUp)) {
             case 1:
                 util.openUrl(`https://www.google.com/search?q=${encodedTieUp}`);
@@ -607,7 +640,7 @@ const funcs = {
         }
     },
     title: () => {
-        const title = util.evalTitleFormat('%title%', fb.GetNowPlaying());
+        const title = util.evalTitleFormat('[%title%]', fb.GetNowPlaying());
         const encodedTitle = encodeURIComponent(title);
         switch (util.showMenuOnCursor(menus.searchTitle)) {
             case 1:
@@ -628,7 +661,7 @@ const funcs = {
         }
     },
     artist: () => {
-        const encodedArtist = encodeURIComponent(util.evalTitleFormat('%artist%', fb.GetNowPlaying()));
+        const encodedArtist = encodeURIComponent(util.evalTitleFormat('[%artist%]', fb.GetNowPlaying()));
         switch (util.showMenuOnCursor(menus.searchArtist)) {
             case 1:
                 util.openUrl(`https://www.google.com/search?q=${encodedArtist}`);
@@ -667,12 +700,20 @@ const util = {
         try {
             return JSON.parse(utils.ReadTextFile(path, 65001));
         } catch (e) {
+            console.log(e);
             return {};
         }
     },
     evalTitleFormat: (query, handle) => {
         const tf = fb.TitleFormat(query);
         return handle ? tf.EvalWithMetadb(handle) : tf.Eval(true);
+    },
+    getSabiArray: (handle) => {
+        const savedSabi = util.evalTitleFormat('[%sabi%]', handle);
+        if (!savedSabi) {
+            return [];
+        }
+        return savedSabi.split(', ').map(s => parseFloat(s));
     },
     formatYearType: (year, type) => {
         const matched = year.match(/^(\d{4})(\w+)$/);
@@ -689,14 +730,14 @@ const util = {
         return length * percent / 100;
     },
     /** @param {string} str */
-    truncate: (str, length) => {
+    truncate: (str, maxLength) => {
         str = str.trim();
         let count = 0;
         const chars = [];
         for (let i = 0; i < str.length; i++) {
             const char = str[i];
             count += Math.ceil(encodeURIComponent(char).length / 6);
-            if (length < count) {
+            if (maxLength < count) {
                 break;
             }
             chars.push(char);
@@ -749,8 +790,9 @@ include(`${RootPath}lib\\ecl.js`);
 let pauseFlg = pWindow.GetProperty('PAUSE_SELECT', true);
 let middlePlayFlg = pWindow.GetProperty('MIDDLE_PLAY', false);
 let middlePlayPos = pWindow.GetProperty('MIDDLE_PLAY_POSITION', '10_90%');
-let copyFormat = pWindow.GetProperty('COPY_FORMAT', '%title% / %artist%');
+let copyFormat = pWindow.GetProperty('COPY_FORMAT', '[%title%] / [%artist%]');
 let screenName = pWindow.GetProperty('TWITTER_SCREEN_NAME', 'rana_intro');
+let tweetFormat = pWindow.GetProperty('TWEET_FORMAT', `${copyFormat} #NowPlaying`);
 
 const panel = new IntroPanel();
 const twitter = new Twitter(screenName);
@@ -759,7 +801,6 @@ const menus = funcs.createMenus();
 /* ↓ Callbacks ↓ */
 
 function on_paint(gr) {
-    // console.log('on_paint');
     panel.draw(gr);
 }
 
@@ -805,11 +846,10 @@ function on_mouse_wheel(step) {
 
 /** @param {number} vkey */
 function on_key_down(vkey) {
-    console.log(`on_key_down: 0x${vkey.toString(16).toUpperCase()}`);
+    console.log(`on_key_down: 0x${vkey.toString(16).toUpperCase()}`); // For Debug
     panel.onKeyPress(vkey);
 }
 
 function on_size(width, height) {
-    // console.log('on_size');
     panel.onResize(width, height);
 }
