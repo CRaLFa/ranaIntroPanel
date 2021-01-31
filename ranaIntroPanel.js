@@ -213,13 +213,14 @@ class IntroPanel {
         pauseFlg && fb.Pause();
         middlePlayFlg && (fb.PlaybackTime = util.calcMiddlePos(fb.PlaybackLength));
         this.showSongInfo(handle);
+        autoCopyFlg && this.clipSongInfo();
     }
     showPlaylistInfo() {
         const plName = plman.GetPlaylistName(plman.ActivePlaylist);
-        const index = plman.GetPlaylistFocusItemIndex(plman.ActivePlaylist) + 1;
+        let index = plman.GetPlaylistFocusItemIndex(plman.ActivePlaylist) + 1;
         const count = plman.GetPlaylistItems(plman.ActivePlaylist).Count;
-        const formattedIdx =  util.zeroPad(index, String(count).length);
-        this.elems.playlist.setText(`${plName} [ ${formattedIdx} / ${count} ]`);
+        index = util.zeroPad(index, String(count).length);
+        this.elems.playlist.setText(`${plName} [ ${index} / ${count} ]`);
     }
     showSongInfo(handle) {
         this.currentHandle = handle;
@@ -266,16 +267,15 @@ class IntroPanel {
         return Object.values(this.elems).find(elem => elem.hover(...this.cursorPos));
     }
     saveSabi() {
-        const self = this;
         const sabiPos = fb.PlaybackTime;
         if (sabiPos === 0) {
             return;
         }
+        const self = this;
         const sabiArray = util.getSabiArray(self.currentHandle);
         sabiArray.push(sabiPos);
         sabiArray.sort((a, b) => a - b);
-        const handleList = new FbMetadbHandleList();
-        handleList.Add(self.currentHandle);
+        const handleList = new FbMetadbHandleList(self.currentHandle);
         handleList.UpdateFileInfoFromJSON(JSON.stringify({ sabi: sabiArray }));
         setTimeout(() => self.showSongInfo(self.currentHandle), 100);
     }
@@ -309,8 +309,8 @@ class IntroPanel {
 }
 
 class UI {
+    /** @param {any[]} sizeDef */
     constructor(sizeDef, events, func) {
-        /** @type {any[]} */
         this.sizeDef = sizeDef;
         this.calcRect();
         this.events = events;
@@ -384,11 +384,11 @@ class Button extends UI {
 }
 
 class Label extends UI {
+    /** @param {GdiFont} font */
     constructor(sizeDef, events, text, color, font, func) {
         super(sizeDef, events, func);
         this.text = text;
         this.color = color;
-        /** @type {GdiFont} */
         this.font = font;
     }
     /** @param {GdiGraphics} gr */
@@ -462,7 +462,7 @@ class Twitter {
     constructor(screenName) {
         this.screenName = screenName;
         const credential = util.parseJSON(`${RootPath}data\\credentials.json`)[screenName];
-        credential && pWindow.SetProperty('TWITTER_CREDENTIAL', JSON.stringify(credential)); // For Debug
+        credential && pWindow.SetProperty('TWITTER_CREDENTIAL', JSON.stringify(credential)); // For debug
         this.consumerKey = credential.consumer_key;
         this.consumerSecret = credential.consumer_secret;
         this.tokenKey = credential.access_token_key;
@@ -612,6 +612,7 @@ const funcs = {
         const mainMenu = pWindow.CreatePopupMenu();
         mainMenu.AppendMenuItem(pauseFlg ? MF_CHECKED : MF_UNCHECKED, 1, 'PAUSE_SELECT');
         mainMenu.AppendMenuItem(middlePlayFlg ? MF_CHECKED : MF_UNCHECKED, 2, 'MIDDLE_PLAY');
+        mainMenu.AppendMenuItem(autoCopyFlg ? MF_CHECKED : MF_UNCHECKED, 3, 'AUTO_COPY');
         const btn = panel.getElement('setting');
         switch (mainMenu.TrackPopupMenu(btn.getOffset('left'), btn.getOffset('bottom'))) {
             case 1:
@@ -621,6 +622,10 @@ const funcs = {
             case 2:
                 middlePlayFlg = !middlePlayFlg;
                 pWindow.SetProperty('MIDDLE_PLAY', middlePlayFlg);
+                break;
+            case 3:
+                autoCopyFlg = !autoCopyFlg;
+                pWindow.SetProperty('AUTO_COPY', autoCopyFlg);
                 break;
         }
     },
@@ -719,10 +724,10 @@ const util = {
         if (!savedSabi) {
             return [];
         }
-        return savedSabi.split(', ').map(s => parseFloat(s));
+        return savedSabi.split(',').map(s => parseFloat(s.trim()));
     },
     formatYearType: (year, type) => {
-        const matched = year.match(/^(\d{4})(\w+)$/);
+        const matched = year.match(/^(\d{4}|null)(\w+)$/);
         return matched === null ? `${year}  ${type}` : `${matched[1]}  ${matched[2]}-${type}`;
     },
     calcMiddlePos: (length) => {
@@ -759,9 +764,8 @@ const util = {
         wsh.Run(url);
     },
     clipText: (text) => {
-        const clip = new ActiveXObject('WScript.Shell').Exec('clip');
-        clip.StdIn.Write(text);
-        clip.StdIn.Close();
+        const wsh = new ActiveXObject('WScript.Shell');
+        wsh.Run(`cmd.exe /C echo ${text.replace(/&/g, '^^^&')}| clip`, 0, true);
     },
     encodeBase64: (path) => {
         const stream = new ActiveXObject('ADODB.Stream');
@@ -795,6 +799,7 @@ include(`${RootPath}lib\\ecl.js`);
 
 let pauseFlg = pWindow.GetProperty('PAUSE_SELECT', true);
 let middlePlayFlg = pWindow.GetProperty('MIDDLE_PLAY', false);
+let autoCopyFlg = pWindow.GetProperty('AUTO_COPY', false);
 let middlePlayPos = pWindow.GetProperty('MIDDLE_PLAY_POSITION', '10_90%');
 let copyFormat = pWindow.GetProperty('COPY_FORMAT', '[%title%] / [%artist%]');
 let screenName = pWindow.GetProperty('TWITTER_SCREEN_NAME', 'rana_intro');
@@ -811,7 +816,6 @@ function on_paint(gr) {
 }
 
 function on_playback_new_track(handle) {
-    panel.showPlaylistInfo();
     panel.onSongSelect(handle);
     panel.showTime();
     panel.repaint('select');
@@ -852,7 +856,7 @@ function on_mouse_wheel(step) {
 
 /** @param {number} vkey */
 function on_key_down(vkey) {
-    console.log(`on_key_down: 0x${vkey.toString(16).toUpperCase()}`); // For Debug
+    console.log(`on_key_down: 0x${vkey.toString(16).toUpperCase()}`); // For debug
     panel.onKeyPress(vkey);
 }
 
